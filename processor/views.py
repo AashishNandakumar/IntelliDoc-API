@@ -7,6 +7,7 @@ from django.core.files.storage import default_storage
 import os
 from django.conf import settings
 
+from .tasks import process_document_task
 from processor.utils import process_document
 from .serializers import DocumentUploadSerializer
 
@@ -21,7 +22,6 @@ class DocumentProcessView(APIView):
         #     return Response({"error": "No file provided"}, status.HTTP_400_BAD_REQUEST)
 
         serializer = DocumentUploadSerializer(data=request.data)
-        # serializer.is_valid(raise_exception=True)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -32,13 +32,15 @@ class DocumentProcessView(APIView):
         file_path = os.path.join(settings.MEDIA_ROOT, file_path)
 
         try:
-            # process the document
-            asset_id = process_document(file_path)
+            # # process the document
+            # asset_id = process_document(file_path)
 
-            # delete the temporary file
-            default_storage.delete(file_path)
+            # # delete the temporary file
+            # default_storage.delete(file_path)
 
-            return Response({"asset_id": asset_id}, status.HTTP_200_OK)
+            task = process_document_task.delay(file_path)
+
+            return Response({"task_id": task.id}, status.HTTP_200_OK)
         except Exception as e:
             # delete the temporary file in case of error
             default_storage.delete(file_path)
