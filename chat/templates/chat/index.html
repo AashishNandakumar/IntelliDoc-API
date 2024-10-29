@@ -1,0 +1,572 @@
+{% extends 'chat/base.html' %} {% block content %}
+<div class="min-h-screen bg-gray-50">
+    <!-- Main Container -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="flex-shrink-0">
+                        <div
+                            class="h-12 w-12 rounded-lg bg-blue-600 flex items-center justify-center"
+                        >
+                            <svg
+                                class="h-6 w-6 text-white"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-4l-4 4z"
+                                />
+                            </svg>
+                        </div>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">
+                            Document Chat
+                        </h1>
+                        <p class="text-sm text-gray-500">
+                            Intelligent conversations with your documents
+                        </p>
+                    </div>
+                </div>
+                <div id="connection-status" class="hidden">
+                    <span class="flex items-center space-x-2">
+                        <span class="relative flex h-3 w-3">
+                            <span
+                                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"
+                            ></span>
+                            <span
+                                class="relative inline-flex rounded-full h-3 w-3 bg-green-500"
+                            ></span>
+                        </span>
+                        <span class="text-sm text-gray-600">Connected</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Start Chat Form -->
+        <div
+            id="start-chat-form"
+            class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden p-8 transition-all duration-300 ease-in-out"
+        >
+            <div class="space-y-6">
+                <div class="text-center">
+                    <h2 class="text-xl font-semibold text-gray-900">
+                        Start New Chat
+                    </h2>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Enter your document's Asset ID to begin
+                    </p>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label
+                            for="asset-id"
+                            class="block text-sm font-medium text-gray-700"
+                            >Asset ID</label
+                        >
+                        <div class="mt-1 relative rounded-md shadow-sm">
+                            <input
+                                type="text"
+                                id="asset-id"
+                                class="block w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+                                placeholder="Enter Asset ID"
+                            />
+                        </div>
+                    </div>
+                    <button
+                        id="start-chat"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                    >
+                        Start Chat
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Interface -->
+        <div id="chat-interface" class="hidden">
+            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                <!-- Chat Messages Area -->
+                <div
+                    id="chat-messages"
+                    class="h-[600px] overflow-y-auto p-6 space-y-4"
+                >
+                    <!-- Messages will be inserted here -->
+                </div>
+
+                <!-- Chat Input Area -->
+                <div class="border-t border-gray-200 p-4 bg-gray-50">
+                    <div class="flex items-center space-x-3">
+                        <div class="flex-1">
+                            <input
+                                type="text"
+                                id="message-input"
+                                class="block w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+                                placeholder="Type your message..."
+                            />
+                        </div>
+                        <button
+                            id="send-message"
+                            class="inline-flex items-center px-4 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                        >
+                            <svg
+                                class="h-5 w-5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function () {
+        let socket = null;
+        let currentThreadId = null;
+        let isTyping = false;
+
+        // Smooth scroll animation
+        function smoothScrollToBottom(element) {
+            $(element).animate({ scrollTop: element.scrollHeight }, 300);
+        }
+
+        // Loading animation
+        function showLoading() {
+            return $("<div>")
+                .addClass("flex items-center space-x-2 py-2")
+                .append($("<div>").addClass("typing-indicator"));
+        }
+
+        // Start Chat Handler with loading animation
+        $("#start-chat").click(function () {
+            const assetId = $("#asset-id").val();
+            if (!assetId) {
+                showNotification("Please enter an Asset ID", "error");
+                return;
+            }
+
+            const $button = $(this);
+            const originalText = $button.text();
+
+            $button
+                .prop("disabled", true)
+                .html(
+                    '<svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>',
+                );
+
+            $.ajax({
+                headers: {
+                    "X-CSRFToken": document.querySelector(
+                        "[name=csrfmiddlewaretoken]",
+                    ).value,
+                },
+                url: "/api/chat/start/",
+                method: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ asset_id: assetId }),
+                success: function (response) {
+                    currentThreadId = response.thread_id;
+                    initializeWebSocket(currentThreadId);
+
+                    // Animate transition
+                    $("#start-chat-form").fadeOut(300, function () {
+                        $("#chat-interface").fadeIn(300);
+                        $("#connection-status").fadeIn(300);
+                    });
+
+                    loadChatHistory(currentThreadId);
+                    showNotification("Chat started successfully", "success");
+                },
+                error: function (xhr) {
+                    showNotification(
+                        "Error starting chat: " + xhr.responseText,
+                        "error",
+                    );
+                    $button.prop("disabled", false).text(originalText);
+                },
+            });
+        });
+
+        // Initialize WebSocket with reconnection logic
+        function initializeWebSocket(threadId) {
+            if (socket) {
+                socket.close();
+            }
+
+            socket = new WebSocket(
+                `ws://${window.location.host}/ws/chat/${threadId}/`,
+            );
+
+            socket.onmessage = function (e) {
+                const data = JSON.parse(e.data);
+                if (data.message) {
+                    // Remove the typing indicator before showing the response
+                    $("#typing-indicator-current").remove();
+                    appendMessage(data.message, false);
+                }
+            };
+
+            socket.onclose = function (e) {
+                $("#connection-status").html(`
+                <span class="flex items-center space-x-2">
+                    <span class="relative flex h-3 w-3">
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                    <span class="text-sm text-red-600">Disconnected</span>
+                </span>
+            `);
+
+                // Attempt to reconnect after 5 seconds
+                setTimeout(() => {
+                    initializeWebSocket(threadId);
+                }, 5000);
+            };
+
+            socket.onopen = function (e) {
+                $("#connection-status").html(`
+                <span class="flex items-center space-x-2">
+                    <span class="relative flex h-3 w-3">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                    </span>
+                    <span class="text-sm text-gray-600">Connected</span>
+                </span>
+            `);
+            };
+        }
+
+        // Send Message Handler with typing indicator
+        function sendMessage() {
+            const messageInput = $("#message-input");
+            const message = messageInput.val().trim();
+
+            if (!message) return;
+
+            appendMessage(message, true);
+
+            // Show typing indicator
+            const typingIndicator = showLoading().attr(
+                "id",
+                "typing-indicator-current",
+            );
+            $("#chat-messages").append(typingIndicator);
+            smoothScrollToBottom($("#chat-messages")[0]);
+
+            socket.send(
+                JSON.stringify({
+                    message: message,
+                }),
+            );
+
+            messageInput.val("").focus();
+        }
+
+        $("#send-message").click(sendMessage);
+
+        $("#message-input").keypress(function (e) {
+            if (e.which == 13 && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Load Chat History with animation
+        function loadChatHistory(threadId) {
+            $.get(
+                `/api/chat/history/?thread_id=${threadId}`,
+                function (messages) {
+                    $("#chat-messages").empty();
+                    messages.forEach((msg, index) => {
+                        setTimeout(() => {
+                            appendMessage(msg.content, msg.is_user);
+                        }, index * 100);
+                    });
+                },
+            );
+        }
+
+        // Append Message with animation
+        function appendMessage(content, isUser) {
+            const now = new Date();
+            const timestamp = now.toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+            });
+
+            const messageDiv = $("<div>")
+                .addClass(
+                    `max-w-2xl mx-2 mb-4 ${isUser ? "ml-auto" : "mr-auto"}`,
+                )
+                .append(
+                    $("<div>")
+                        .addClass(
+                            `rounded-lg p-4 relative ${isUser ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"}`,
+                        )
+                        .append($("<p>").addClass("text-sm mb-4").text(content))
+                        .append(
+                            $("<div>")
+                                .addClass(
+                                    `text-xs absolute bottom-1 right-2 opacity-60 ${isUser ? "text-gray-200" : "text-gray-500"}`,
+                                )
+                                .text(timestamp),
+                        ),
+                )
+                .hide()
+                .fadeIn(300);
+
+            $("#chat-messages").append(messageDiv);
+            smoothScrollToBottom($("#chat-messages")[0]);
+        }
+
+        // Notification system
+        function showNotification(message, type = "info") {
+            const notification = $("<div>")
+                .addClass(
+                    `fixed top-4 right-4 w-96 bg-white rounded-lg shadow-lg p-4 transform transition-all duration-300 ease-in-out translate-y-[-100%] opacity-0`,
+                )
+                .css("z-index", 9999);
+            const icon =
+                type === "success"
+                    ? '<svg class="h-6 w-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>'
+                    : '<svg class="h-6 w-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+            notification.html(`
+                <div class="flex items-start space-x-3">
+                    <div class="flex-shrink-0">
+                        ${icon}
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-900 break-words">${message}</p>
+                    </div>
+                </div>
+            `);
+            $("body").append(notification);
+            // Animate in
+            setTimeout(() => {
+                notification.removeClass("translate-y-[-100%] opacity-0");
+            }, 100);
+            // Animate out
+            setTimeout(() => {
+                notification.addClass("translate-y-[-100%] opacity-0");
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            }, 3000);
+        }
+    });
+</script>
+
+<style>
+    /* Typing indicator animation */
+    .typing-indicator {
+        width: 50px;
+        height: 30px;
+        position: relative;
+        background: #e9ecef;
+        padding: 10px;
+        border-radius: 20px;
+    }
+
+    .typing-indicator::before,
+    .typing-indicator::after {
+        content: "";
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #adb5bd;
+        animation: typing 1s infinite;
+    }
+
+    .typing-indicator::before {
+        left: 10px;
+        animation-delay: 0.2s;
+    }
+
+    .typing-indicator::after {
+        left: 28px;
+        animation-delay: 0.3s;
+    }
+
+    @keyframes typing {
+        0%,
+        100% {
+            transform: translateY(0);
+        }
+        50% {
+            transform: translateY(-5px);
+        }
+    }
+
+    /* Smooth scrollbar */
+    #chat-messages {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+    }
+
+    #chat-messages::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    #chat-messages::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    #chat-messages::-webkit-scrollbar-thumb {
+        background-color: rgba(155, 155, 155, 0.5);
+        border-radius: 3px;
+        border: transparent;
+    }
+
+    /* Message animations */
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    #chat-messages > div {
+        animation: slideIn 0.3s ease-out forwards;
+    }
+
+    /* Input focus effects */
+    #message-input:focus {
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        transition: all 0.2s ease;
+    }
+
+    /* Button hover effects */
+    #send-message:hover {
+        transform: translateY(-1px);
+        box-shadow:
+            0 4px 6px -1px rgba(0, 0, 0, 0.1),
+            0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        transition: all 0.2s ease;
+    }
+
+    #send-message:active {
+        transform: translateY(0);
+    }
+
+    /* Connection status indicator pulse */
+    @keyframes statusPulse {
+        0% {
+            transform: scale(0.95);
+            opacity: 0.5;
+        }
+        50% {
+            transform: scale(1.05);
+            opacity: 0.8;
+        }
+        100% {
+            transform: scale(0.95);
+            opacity: 0.5;
+        }
+    }
+
+    #connection-status .animate-ping {
+        animation: statusPulse 2s infinite;
+    }
+
+    /* Message bubble hover effects */
+    .message-bubble {
+        transition: transform 0.2s ease;
+    }
+
+    .message-bubble:hover {
+        transform: translateY(-1px);
+    }
+
+    /* Loading spinner animation */
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .loading-spinner {
+        animation: spin 1s linear infinite;
+    }
+
+    /* Responsive design adjustments */
+    @media (max-width: 640px) {
+        #chat-messages {
+            height: calc(100vh - 200px);
+        }
+
+        .max-w-2xl {
+            max-width: 90%;
+        }
+    }
+
+    /* Message timestamp fade effect */
+    .message-timestamp {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .message-bubble:hover .message-timestamp {
+        opacity: 1;
+    }
+
+    /* Error shake animation */
+    @keyframes shake {
+        0%,
+        100% {
+            transform: translateX(0);
+        }
+        25% {
+            transform: translateX(-5px);
+        }
+        75% {
+            transform: translateX(5px);
+        }
+    }
+
+    .error-shake {
+        animation: shake 0.5s ease-in-out;
+    }
+
+    /* Smooth transitions */
+    .transition-all {
+        transition-property: all;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        transition-duration: 150ms;
+    }
+
+    /* Focus outline styling */
+    *:focus {
+        outline: none;
+        ring-color: rgba(59, 130, 246, 0.5);
+        ring-offset-color: #ffffff;
+    }
+
+    /* Custom selection color */
+    ::selection {
+        background-color: rgba(59, 130, 246, 0.2);
+    }
+</style>
+{% endblock %}

@@ -55,15 +55,19 @@ def create_chat_chain(asset_id: str):
     if vector_store is None:
         return None
 
-    retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+    retriever = vector_store.as_retriever(
+        search_kwargs={"k": 3},
+    )
 
-    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    memory = ConversationBufferMemory(
+        memory_key="chat_history",
+        return_messages=True,
+    )
 
     return ConversationalRetrievalChain.from_llm(
         llm=get_chat_model(),
         retriever=retriever,
         memory=memory,
-        # return_source_documents=True,
         verbose=True,
     )
 

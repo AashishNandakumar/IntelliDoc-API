@@ -6,6 +6,7 @@ from .models import ChatThread, ChatMessage
 from .utils import create_chat_chain, generate_thread_id
 from django.http import StreamingHttpResponse
 import json
+from django.views.generic import TemplateView
 
 
 # Create your views here.
@@ -89,3 +90,7 @@ class ChatHistoryView(APIView):
             "content", "is_user", "timestamp"
         )
         return Response(messages, status.HTTP_200_OK)
+
+
+class ChatView(TemplateView):
+    template_name = "chat/index.html"
