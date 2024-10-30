@@ -4,6 +4,8 @@ A Django-based system that combines document processing capabilities with a RAG 
 
 ![Screenshot from 2024-10-29 16-11-21-1](https://github.com/user-attachments/assets/16804961-6fc9-4277-8b8a-f20bd09542b1)
 
+RESTful APIs:
+> https://www.postman.com/noire-aashish-nk/workspace/intellidoc-api/collection/28604040-8978b6ad-39f6-48d5-a37a-24eb6eb51d93?action=share&creator=28604040
 
 ## Features
 
